@@ -16,11 +16,9 @@ app.get('/', (req, res) => {
 });
 
 // Health check endpoint
-let demoFailure = false;
-
 app.get('/health', (req, res) => {
-  if (process.env.REGION === 'Mumbai' && demoFailure) {
-    return res.status(503).json({ status: 'unhealthy', reason: 'demo_failure' });
+  if (process.env.FAILOVER_MODE === 'unhealthy') {
+    return res.status(503).json({ status: 'unhealthy' });
   }
   res.json({ status: 'healthy' });
 });
@@ -36,28 +34,86 @@ const checkDemoAuth = (req, res, next) => {
   next();
 };
 
-app.post('/api/demo/fail-primary', checkDemoAuth, (req, res) => {
-  if (process.env.REGION !== 'Mumbai') {
-    return res.status(400).json({ error: 'Control only available on primary region (Mumbai)' });
+const { GoogleAuth } = require('google-auth-library');
+
+async function setFailoverMode(mode) {
+  const auth = new GoogleAuth({ scopes: 'https://www.googleapis.com/auth/cloud-platform' });
+  let client;
+  try {
+    client = await auth.getClient();
+  } catch (err) {
+    throw new Error('Google Cloud credentials not available locally.');
   }
-  demoFailure = true;
-  res.json({ success: true, message: 'Mumbai primary health endpoint is now failing' });
+
+  const projectId = 'cloud-dns-failover-demo-511215';
+  const url = `https://run.googleapis.com/v2/projects/${projectId}/locations/asia-south1/services/failover-primary`;
+
+  const getRes = await client.request({ url, method: 'GET' });
+  const service = getRes.data;
+
+  if (!service.template.containers[0].env) {
+    service.template.containers[0].env = [];
+  }
+  let envs = service.template.containers[0].env;
+  let found = false;
+  for (let env of envs) {
+    if (env.name === 'FAILOVER_MODE') {
+      env.value = mode;
+      found = true;
+      break;
+    }
+  }
+  if (!found) {
+    envs.push({ name: 'FAILOVER_MODE', value: mode });
+  }
+
+  const patchRes = await client.request({
+    url: `${url}?updateMask=template.containers`,
+    method: 'PATCH',
+    data: { template: { containers: service.template.containers } }
+  });
+
+  const opName = patchRes.data.name;
+  let done = false;
+  while (!done) {
+    await new Promise(r => setTimeout(r, 2000));
+    const opRes = await client.request({
+      url: `https://run.googleapis.com/v2/${opName}`,
+      method: 'GET'
+    });
+    if (opRes.data.done) {
+      if (opRes.data.error) throw new Error(opRes.data.error.message);
+      done = true;
+    }
+  }
+}
+
+app.post('/api/demo/fail-primary', checkDemoAuth, async (req, res) => {
+  try {
+    await setFailoverMode('unhealthy');
+    res.json({ success: true, message: 'Mumbai unhealthy revision deployed successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update Cloud Run' });
+  }
 });
 
-app.post('/api/demo/restore-primary', checkDemoAuth, (req, res) => {
-  if (process.env.REGION !== 'Mumbai') {
-    return res.status(400).json({ error: 'Control only available on primary region (Mumbai)' });
+app.post('/api/demo/restore-primary', checkDemoAuth, async (req, res) => {
+  try {
+    await setFailoverMode('healthy');
+    res.json({ success: true, message: 'Mumbai healthy revision deployed successfully.' });
+  } catch (err) {
+    res.status(500).json({ error: err.message || 'Failed to update Cloud Run' });
   }
-  demoFailure = false;
-  res.json({ success: true, message: 'Mumbai primary health endpoint restored' });
 });
 
 app.get('/api/demo/status', (req, res) => {
   const enabled = !!process.env.DEMO_CONTROL_TOKEN;
   res.json({
     enabled,
-    region: process.env.REGION || 'Mumbai',
-    failureActive: demoFailure
+    configured: enabled,
+    region: 'asia-south1',
+    service: 'failover-primary',
+    reason: enabled ? 'Configured and Ready' : 'Control not configured (Token missing)'
   });
 });
 

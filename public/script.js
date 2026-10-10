@@ -282,7 +282,8 @@ document.addEventListener('DOMContentLoaded', () => {
           realFailoverStatus.textContent = 'FAILOVER IN PROGRESS';
         }
       } else {
-        realFailoverStatus.textContent = 'REAL FAILOVER CONTROL NOT CONFIGURED';
+        realFailoverStatus.textContent = data.reason || 'REAL FAILOVER CONTROL NOT CONFIGURED';
+        realFailoverStatus.style.color = '#ef4444';
       }
     } catch (e) {
       realFailoverStatus.textContent = 'Backend Error';
@@ -299,25 +300,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = prompt('Enter Demo Control Token:');
     if (!token) return;
 
+    btnRealFail.disabled = true;
+    btnRealRestore.disabled = true;
+    realFailoverStatus.innerHTML = 'Deploying unhealthy Mumbai revision...';
+
     try {
       const res = await fetch('/api/demo/fail-primary', {
         method: 'POST',
-        headers: {
-          'x-demo-token': token
-        }
+        headers: { 'x-demo-token': token }
       });
       const data = await res.json();
       if (res.ok) {
-        addLog('SYSTEM', 'Real failover test initiated');
+        addLog('SYSTEM', 'Real failover test initiated: Mumbai unhealthy revision deployed');
         realTestInProgress = true;
         realFailoverStatus.innerHTML = 'FAILOVER TEST IN PROGRESS - Primary health failing...';
-        // Force an immediate status fetch to see the HTTP 503 quickly
         fetchStatus();
       } else {
         alert('Error: ' + (data.error || 'Unknown Error'));
+        realFailoverStatus.innerHTML = 'Deploy Failed';
+        btnRealFail.disabled = false;
+        btnRealRestore.disabled = false;
       }
     } catch(e) {
       alert('Request failed');
+      realFailoverStatus.innerHTML = 'Deploy Failed';
+      btnRealFail.disabled = false;
+      btnRealRestore.disabled = false;
     }
   });
 
@@ -325,24 +333,32 @@ document.addEventListener('DOMContentLoaded', () => {
     const token = prompt('Enter Demo Control Token:');
     if (!token) return;
 
+    btnRealFail.disabled = true;
+    btnRealRestore.disabled = true;
+    realFailoverStatus.innerHTML = 'Deploying healthy Mumbai revision...';
+
     try {
       const res = await fetch('/api/demo/restore-primary', {
         method: 'POST',
-        headers: {
-          'x-demo-token': token
-        }
+        headers: { 'x-demo-token': token }
       });
       const data = await res.json();
       if (res.ok) {
-        addLog('SYSTEM', 'Real failover recovery initiated');
+        addLog('SYSTEM', 'Real failover recovery initiated: Mumbai healthy revision deployed');
         realTestInProgress = true;
         realFailoverStatus.innerHTML = 'RECOVERY IN PROGRESS - Restoring primary health...';
         fetchStatus();
       } else {
         alert('Error: ' + (data.error || 'Unknown Error'));
+        realFailoverStatus.innerHTML = 'Deploy Failed';
+        btnRealFail.disabled = false;
+        btnRealRestore.disabled = false;
       }
     } catch(e) {
       alert('Request failed');
+      realFailoverStatus.innerHTML = 'Deploy Failed';
+      btnRealFail.disabled = false;
+      btnRealRestore.disabled = false;
     }
   });
 
