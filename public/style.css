@@ -1,0 +1,82 @@
+/* Reset */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  height: 100%;
+  font-family: 'Inter', sans-serif;
+  background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
+  color: #e0e0e0;
+  line-height: 1.5;
+}
+
+.container {
+  max-width: 600px;
+  margin: 2rem auto;
+  padding: 1.5rem;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 12px;
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+}
+
+.title {
+  text-align: center;
+  font-size: 2rem;
+  margin-bottom: 1.5rem;
+  letter-spacing: 2px;
+  color: #fff;
+}
+
+.status-section, .info-section {
+  margin-bottom: 1.5rem;
+}
+
+.status-section h2,
+.info-section h2 {
+  font-size: 1.2rem;
+  margin-bottom: 0.5rem;
+  color: #a0c4ff;
+}
+
+#health-message {
+  font-size: 1rem;
+  font-weight: 500;
+  color: #90ee90; /* green for healthy */
+}
+
+.info-section ul {
+  list-style: none;
+  padding-left: 0;
+}
+
+.info-section li {
+  margin: 0.4rem 0;
+  font-size: 0.95rem;
+}
+
+.info-section span {
+  font-weight: 600;
+  color: #ffd166;
+}
+
+.footer {
+  text-align: center;
+  font-size: 0.85rem;
+  color: #bbb;
+  margin-top: 2rem;
+}
+
+/* Responsive */
+@media (max-width: 480px) {
+  .container {
+    margin: 1rem;
+    padding: 1rem;
+  }
+  .title {
+    font-size: 1.6rem;
+  }
+}
