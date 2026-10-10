@@ -14,9 +14,6 @@ app.get('/', (req, res) => {
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  if (process.env.REGION === 'Mumbai') {
-    return res.status(503).json({ status: 'unhealthy' });
-  }
   res.json({ status: 'healthy' });
 });
 
