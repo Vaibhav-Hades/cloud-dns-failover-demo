@@ -3,30 +3,406 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Cloud DNS Failover Demo</title>
+  <title>Cloud DNS / Failover Control Center</title>
   <link rel="stylesheet" href="style.css" />
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
-  <main class="container">
-    <h1 class="title">CLOUD FAILOVER DEMO</h1>
-    <section class="status-section" id="health-status">
-      <h2>System Health</h2>
-      <p id="health-message">Loading…</p>
-    </section>
-    <section class="info-section" id="info-section">
-      <h2>Instance Details</h2>
-      <ul>
-        <li>Region: <span id="region">‑</span></li>
-        <li>Role: <span id="role">‑</span></li>
-        <li>Status: <span id="status">‑</span></li>
-        <li>Health: <span id="health">‑</span></li>
-        <li>Version: <span id="version">‑</span></li>
-      </ul>
-    </section>
-    <footer class="footer">
-      <p>© 2026 Cloud DNS Failover Demo</p>
+  <div class="app-container">
+    <header class="top-nav">
+      <div class="nav-brand">
+        <div class="logo-icon"></div>
+        <div class="brand-text">
+          <h1>CLOUD DNS <span class="slash">/</span> FAILOVER CONTROL CENTER</h1>
+          <p>Multi-Region Health Monitoring & Automatic DNS Failover</p>
+        </div>
+      </div>
+      <div class="nav-actions">
+        <div class="last-updated" style="font-size: 0.85rem; color: var(--text-muted); font-family: var(--font-mono);">
+          LAST UPDATED: <span id="last-updated">--:--:--</span>
+        </div>
+        <div class="status-indicator">
+          <span class="dot active"></span> LIVE
+        </div>
+        <div class="btn outline-btn">
+          <span class="icon">◎</span> LIVE DEMO
+        </div>
+      </div>
+    </header>
+
+    <div class="demo-bar">
+      <div class="demo-info">
+        <span class="badge">DEMO / SIMULATION MODE</span>
+        <div class="demo-text">
+          <strong>Interactive Evaluator Controls</strong>
+          <p>These buttons run client-side state machine demonstrations for evaluation. They simulate primary region outages, health check failure detection, and automatic Cloud DNS rerouting without altering production GCP quotas.</p>
+        </div>
+      </div>
+      <div class="demo-actions">
+        <button id="simulate-failure" class="btn btn-red">SIMULATE PRIMARY FAILURE</button>
+        <button id="simulate-recovery" class="btn btn-green">SIMULATE RECOVERY</button>
+        <button id="reset-demo" class="btn btn-ghost">↻ RESET DEMO</button>
+      </div>
+    </div>
+
+    <div class="demo-bar real-failover-bar" style="border-color: rgba(245, 158, 11, 0.4); background: rgba(245, 158, 11, 0.05); margin-top: -0.5rem; margin-bottom: 1.5rem;">
+      <div class="demo-info">
+        <span class="badge orange-badge">REAL FAILOVER CONTROL</span>
+        <div class="demo-text">
+          <strong id="real-failover-status">Loading configuration...</strong>
+          <p>Triggers a backend state change causing the Mumbai health endpoint to return HTTP 503. Google Cloud Health Checks and Cloud DNS will perform an actual failover to Singapore.</p>
+        </div>
+      </div>
+      <div class="demo-actions">
+        <button id="real-fail-btn" class="btn btn-red" disabled>TEST REAL FAILOVER</button>
+        <button id="real-restore-btn" class="btn btn-green" disabled>RESTORE PRIMARY</button>
+      </div>
+    </div>
+
+    <div class="grid-3">
+      <div class="card">
+        <div class="card-header">CURRENT ACTIVE REGION</div>
+        <div class="card-title-row">
+          <h2 id="active-region-name">MUMBAI <span class="tag">asia-south1</span></h2>
+          <span class="badge blue-badge" id="active-region-role">PRIMARY TARGET</span>
+        </div>
+        <div class="metrics-grid">
+          <div class="metric">
+            <label>Resolved IP</label>
+            <div class="value cyan" id="active-ip">35.207.252.1</div>
+          </div>
+          <div class="metric">
+            <label>Health Probe</label>
+            <div class="value green" id="active-health">● HEALTHY (200 OK)</div>
+          </div>
+          <div class="metric">
+            <label>Traffic Allocation</label>
+            <div class="value white" id="active-traffic">100% PRIMARY</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">DNS ROUTING STATUS</div>
+        <div class="card-body">
+          <h3 class="status-title"><span class="dot cyan-dot"></span> <span id="dns-status-title">PRIMARY ACTIVE</span></h3>
+          <p class="status-desc">Cloud DNS health-check driven failover policy enabled.</p>
+          <div class="status-details">
+            <div class="detail">TTL Countdown: <span class="cyan">159s</span></div>
+            <div class="detail">Policy: <span class="white">FAILOVER</span></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">FAILOVER READY STATE</div>
+        <div class="card-body">
+          <div class="state-row">
+            <span>Backup (Singapore):</span>
+            <span class="badge orange-badge" id="backup-status-badge">STANDBY / READY</span>
+          </div>
+          <div class="state-row">
+            <span>Auto Failover Trigger:</span>
+            <span class="white">≤ 2 Unhealthy probes</span>
+          </div>
+          <div class="state-row">
+            <span>Backend sync:</span>
+            <span class="green">● 100% Operational</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card arch-card">
+      <div class="card-header">● 4. MAIN ARCHITECTURE & TRAFFIC FLOW <span class="float-right"><span class="cyan">— Active Traffic Flow</span> &nbsp;&nbsp; <span class="gray">-- Standby / Dormant Path</span></span></div>
+      
+      <div class="arch-diagram">
+        <div class="node user-node">
+          <div class="node-title">CLIENT / WEB USER</div>
+          <div class="node-sub">DNS Query: api.cloudproject.internal</div>
+        </div>
+
+        <div class="arch-split">
+          <div class="node dns-node" id="dns-node">
+            <div class="node-header">
+              <span class="icon">☁</span> GOOGLE CLOUD DNS <span class="badge blue-badge float-right">Active</span>
+            </div>
+            <p>Geo-routing policy with automated health-check target selection.</p>
+            <div class="record-box">
+              <span>Active Record:</span>
+              <span class="cyan" id="dns-active-record">35.207.252.1 (A)</span>
+            </div>
+          </div>
+
+          <div class="node health-node">
+            <div class="node-header">
+              <span class="icon">♥</span> GCP HEALTH CHECK PROBE <span class="badge green-badge float-right">HTTP</span>
+            </div>
+            <p>Periodic GET /health verification on regional endpoints every 30s.</p>
+            <div class="record-box">
+              <span>Probe Threshold:</span>
+              <span class="white">2 Consecutive Failures</span>
+            </div>
+          </div>
+        </div>
+
+        <div class="arch-regions">
+          <div class="region-box active-path" id="diagram-mumbai">
+            <div class="box-header">
+              <h4>MUMBAI (PRIMARY) <span class="tag">ACTIVE</span></h4>
+              <span class="badge green-badge">● HEALTHY</span>
+            </div>
+            <div class="box-sub">asia-south1 • Tier-1 Region</div>
+            <div class="box-details">
+              <div class="dr"><label>Service:</label> <span>Cloud Run (failover-primary)</span></div>
+              <div class="dr"><label>LB Ingress:</label> <span>Regional External HTTPS LB</span></div>
+              <div class="dr"><label>Endpoint IP:</label> <span class="cyan">35.207.252.1</span></div>
+              <div class="dr"><label>Probe Response:</label> <span class="green">HTTP 200 OK (24ms)</span></div>
+            </div>
+            <div class="box-footer">
+              <span>Routing Role: Default Active Gateway</span>
+              <span class="green">Receiving 100% requests</span>
+            </div>
+          </div>
+
+          <div class="region-box standby-path" id="diagram-singapore">
+            <div class="box-header">
+              <h4>SINGAPORE (BACKUP) <span class="tag">STANDBY</span></h4>
+              <span class="badge gray-badge">● STANDBY / READY</span>
+            </div>
+            <div class="box-sub">asia-southeast1 • Hot Standby</div>
+            <div class="box-details">
+              <div class="dr"><label>Service:</label> <span>Cloud Run (failover-backup)</span></div>
+              <div class="dr"><label>LB Ingress:</label> <span>Regional External HTTPS LB</span></div>
+              <div class="dr"><label>Endpoint IP:</label> <span class="white">34.2.145.135</span></div>
+              <div class="dr"><label>Probe Response:</label> <span class="green">HTTP 200 OK (38ms)</span></div>
+            </div>
+            <div class="box-footer">
+              <span>Routing Role: Automated Failover Target</span>
+              <span class="gray">Dormant (0% traffic)</span>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card" id="detail-mumbai">
+        <div class="card-header">
+          MUMBAI - PRIMARY <span class="tag">asia-south1</span>
+          <span class="badge green-badge float-right">● ACTIVE</span>
+        </div>
+        <div class="card-body">
+          <p class="gray-text">Primary Active Ingress Endpoint</p>
+          <div class="grid-2-inner">
+            <div class="data-group">
+              <label>Role</label>
+              <div class="val">PRIMARY</div>
+            </div>
+            <div class="data-group">
+              <label>Endpoint IP</label>
+              <div class="val cyan">35.207.252.1</div>
+            </div>
+            <div class="data-group">
+              <label>Health Check Path</label>
+              <div class="val">HTTP /health</div>
+            </div>
+            <div class="data-group">
+              <label>Response Code</label>
+              <div class="val green">200 OK</div>
+            </div>
+            <div class="data-group">
+              <label>GCP Region</label>
+              <div class="val">asia-south1</div>
+            </div>
+            <div class="data-group">
+              <label>Cloud Service</label>
+              <div class="val">failover-primary</div>
+            </div>
+          </div>
+          <div class="traffic-footer">
+            <span>Traffic Routing:</span>
+            <span class="green">● ACTIVE (100% Allocation)</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="card" id="detail-singapore">
+        <div class="card-header">
+          SINGAPORE - BACKUP <span class="tag">asia-southeast1</span>
+          <span class="badge gray-badge float-right">● STANDBY</span>
+        </div>
+        <div class="card-body">
+          <p class="gray-text">Hot Standby Failover Target</p>
+          <div class="grid-2-inner">
+            <div class="data-group">
+              <label>Role</label>
+              <div class="val">BACKUP</div>
+            </div>
+            <div class="data-group">
+              <label>Endpoint IP</label>
+              <div class="val">34.2.145.135</div>
+            </div>
+            <div class="data-group">
+              <label>Health Check Path</label>
+              <div class="val">HTTP /health</div>
+            </div>
+            <div class="data-group">
+              <label>Response Code</label>
+              <div class="val green">200 OK</div>
+            </div>
+            <div class="data-group">
+              <label>GCP Region</label>
+              <div class="val">asia-southeast1</div>
+            </div>
+            <div class="data-group">
+              <label>Cloud Service</label>
+              <div class="val">failover-backup</div>
+            </div>
+          </div>
+          <div class="traffic-footer">
+            <span>Traffic Routing:</span>
+            <span class="gray">○ STANDBY (0% Allocation)</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-header">● HEALTH CHECK MONITOR <span class="badge blue-badge float-right">Protocol: HTTP</span></div>
+        <div class="table-container">
+          <table class="monitor-table">
+            <thead>
+              <tr>
+                <th>Endpoint</th>
+                <th>Path</th>
+                <th>Response</th>
+                <th class="text-right">Status</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr>
+                <td>Mumbai (Primary)</td>
+                <td>/health</td>
+                <td class="green" id="tbl-mumbai-resp">200 OK</td>
+                <td class="text-right green" id="tbl-mumbai-status">● HEALTHY</td>
+              </tr>
+              <tr>
+                <td>Singapore (Backup)</td>
+                <td>/health</td>
+                <td class="green">200 OK</td>
+                <td class="text-right green">● HEALTHY</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+        <div class="monitor-footer">
+          <div class="mf"><label>Interval</label><span>30 seconds</span></div>
+          <div class="mf"><label>Timeout</label><span>5 seconds</span></div>
+          <div class="mf"><label>Healthy Thresh</label><span>2 probes</span></div>
+          <div class="mf"><label>Unhealthy Thresh</label><span>2 probes</span></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">● DNS ROUTING DECISION <span class="badge cyan-badge float-right">Policy: FAILOVER</span></div>
+        <div class="policy-decision" id="dns-decision-box">
+          <div class="decision-title">Current Policy Decision:</div>
+          <div class="decision-main green">PRIMARY REGION HEALTHY</div>
+          <div class="decision-sub">→ Route Traffic to Mumbai (35.207.252.1)</div>
+        </div>
+        <div class="dns-targets">
+          <div class="target-block">
+            <label>Current DNS Target</label>
+            <div class="val cyan" id="dns-target-ip">35.207.252.1</div>
+          </div>
+          <div class="target-block">
+            <label>Backup Target</label>
+            <div class="val white">34.2.145.135</div>
+          </div>
+        </div>
+        <div class="dns-targets border-top">
+          <div class="target-block">
+            <label>Routing Policy</label>
+            <div class="val white">FAILOVER</div>
+          </div>
+          <div class="target-block">
+            <label>TTL</label>
+            <div class="val white">300 seconds</div>
+          </div>
+        </div>
+        <div class="logic-box">
+          <label>Cloud DNS Decision Logic:</label>
+          <div class="logic-flow">
+            <div class="logic-step active">PRIMARY HEALTHY<br>↓ TRAFFIC = MUMBAI</div>
+            <div class="logic-step">PRIMARY UNHEALTHY<br>↓ TRAFFIC = SINGAPORE</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header">
+        ● ● ● LIVE FAILOVER EVENT STREAM
+        <div class="float-right">
+          <span class="gray">Terminal stdout • Auto-scrolling</span>
+          <button class="btn btn-sm btn-outline ml-2" id="clear-log">Clear</button>
+        </div>
+      </div>
+      <div class="terminal" id="terminal-log">
+      </div>
+    </div>
+
+    <div class="grid-2 mb-8">
+      <div class="card">
+        <div class="card-header">● DEPLOYMENT PIPELINE <span class="badge green-badge float-right">Automated</span></div>
+        <p class="gray-text mb-4">Code pushed to GitHub triggers Cloud Build and updates both regional Cloud Run services automatically.</p>
+        <div class="pipeline-steps">
+          <div class="p-step"><span class="icon green">✓</span> GitHub Repository <span class="float-right gray">main branch push</span></div>
+          <div class="p-step"><span class="icon green">✓</span> Google Cloud Build <span class="float-right gray">Build #14 passed</span></div>
+          <div class="p-step"><span class="icon green">✓</span> Artifact Registry <span class="float-right gray">Container image: v1.1</span></div>
+          <div class="p-step"><span class="icon green">✓</span> Cloud Run Deployment <span class="float-right gray">Deployed to 2 regions</span></div>
+        </div>
+        <div class="pipeline-footer">
+          Current App Version: <span class="badge purple-badge" id="app-version">1.1 — CI/CD UPDATE</span>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-header">● FAILOVER SCENARIO & AUTOMATIC RECOVERY GUIDE <span class="cyan float-right">30-Second Core Concept</span></div>
+        <p class="gray-text mb-4">Visual walkthrough of how Cloud DNS dynamically preserves uptime when physical infrastructure in the primary region degrades.</p>
+        <div class="scenario-grid">
+          <div class="scenario-box">
+            <div class="s-step">1. NORMAL HEALTHY STATE</div>
+            <div class="s-title">MUMBAI PRIMARY</div>
+            <div class="s-stat green">● HEALTHY • ACTIVE</div>
+            <p>Singapore = READY (Standby). Cloud DNS points 100% traffic to Mumbai.</p>
+          </div>
+          <div class="scenario-box">
+            <div class="s-step">2. OUTAGE & DNS FAILOVER</div>
+            <div class="s-title">MUMBAI = FAILS</div>
+            <div class="s-stat red">✕ UNHEALTHY (503)</div>
+            <p>GCP Health Check triggers → Cloud DNS redirects target to <span class="cyan">Singapore</span>.</p>
+          </div>
+          <div class="scenario-box">
+            <div class="s-step">3. AUTOMATIC FALLBACK</div>
+            <div class="s-title">PRIMARY RESTORED</div>
+            <div class="s-stat green">● 200 OK • RECOVERED</div>
+            <p>Probes pass 2 consecutive checks → Cloud DNS restores Mumbai as Active.</p>
+          </div>
+        </div>
+      </div>
+    </div>
+    
+    <footer class="app-footer">
+      <div>Cloud DNS Failover Demo - Multi-Region Health Monitoring</div>
+      <div>Google Cloud Architecture: Cloud Run - Cloud DNS - Cloud Build</div>
     </footer>
-  </main>
+  </div>
+
   <script src="script.js"></script>
 </body>
 </html>
