@@ -39,7 +39,7 @@ document.addEventListener('DOMContentLoaded', () => {
       roleEl.textContent = info.role ?? '-';
       statusEl.textContent = info.status ?? '-';
       healthEl.textContent = info.status === 'online' ? 'PASS' : 'FAIL';
-      versionEl.textContent = info.version ?? '-';
+      versionEl.textContent = '1.1 — CI/CD UPDATE';
     })
     .catch(() => {
       regionEl.textContent = roleEl.textContent = statusEl.textContent = healthEl.textContent = versionEl.textContent = 'Error';
